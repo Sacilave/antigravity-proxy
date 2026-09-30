@@ -1,4 +1,4 @@
-# ============================================================
+﻿# ============================================================
 #  Antigravity-Proxy 编译脚本
 #  PowerShell Build Script for Windows
 # ============================================================
@@ -473,11 +473,12 @@ FAILED_PRECONDITION (code 400): User location is not supported for the API use.
 
 ### 1. 部署方式
 
-#### 方式 A：一键安装快捷方式与防更新覆盖守护（推荐 ⭐）
-- **Windows 用户**：解压后直接双击根目录的 `install-launcher.bat`（或 `快速安装快捷方式.bat`），即可一键创建桌面/开始菜单快捷方式或固定到任务栏。
+#### 方式 A：一键智能向导与防更新覆盖守护（推荐 ⭐）
+- **Windows 用户**：解压后直接双击根目录的 `setup.bat` 启动智能配置向导：
   - **原生防更新覆盖**：每次通过快捷方式启动时在 3 毫秒内自动比对，若客户端自动更新抹除了补丁，会瞬间自动热恢复。
-  - **在线更新**：后续有新版本发布时，双击 `update-patch.bat`（或 `一键更新补丁.bat`）即可一键在线热升级并保留原有代理端口。
-- **Linux / WSL 用户**：运行 `bash launcher/install-linux.sh` 即可安装桌面菜单并启用防更新自愈守护。
+  - **多语言与智能感知**：支持中文/英文/俄文自动检测与切换，自动识别 IDE 桌面端或 CLI 命令行端。
+  - **在线更新与端口设置**：支持一键检查在线更新（自动保留代理配置），以及通过 `[P]` 选项随时查看或修改本地代理端口。
+- **Linux / WSL 用户**：运行 `./setup.sh`（或 `bash launcher/install-linux.sh`）即可安装桌面菜单并启用防更新自愈守护。
 
 #### 方式 B：手动复制部署
 - Antigravity 桌面端/IDE：只复制 `ide/` 内的 `version.dll` 与 `config.json` 到主程序目录。
@@ -707,16 +708,20 @@ if ($launcherExeBuilt) {
 }
 $launcherScriptsSrc = Join-Path $PSScriptRoot "scripts\launcher"
 if (Test-Path $launcherScriptsSrc) {
-    Get-ChildItem -Path $launcherScriptsSrc -File | ForEach-Object {
+    Get-ChildItem -Path $launcherScriptsSrc -File | Where-Object { $_.Name -notmatch '^setup\.(bat|sh)$' } | ForEach-Object {
         Copy-Item $_.FullName -Destination (Join-Path $LauncherOutDir $_.Name) -Force
     }
-    foreach ($batName in @("快速安装快捷方式.bat", "一键更新补丁.bat", "install-launcher.bat", "update-patch.bat")) {
-        $bSrc = Join-Path $launcherScriptsSrc $batName
-        if (Test-Path $bSrc) {
-            Copy-Item $bSrc -Destination (Join-Path $OutputDir $batName) -Force
+    foreach ($entryFile in @("setup.bat", "setup.sh")) {
+        $eSrc = Join-Path $launcherScriptsSrc $entryFile
+        if (Test-Path $eSrc) {
+            Copy-Item $eSrc -Destination (Join-Path $OutputDir $entryFile) -Force
         }
     }
-    Write-Success "跨平台快捷方式安装套件已同步到 output 目录"
+    foreach ($oldBat in @("快速安装快捷方式.bat", "一键更新补丁.bat", "install-launcher.bat", "update-patch.bat")) {
+        $oldPath = Join-Path $OutputDir $oldBat
+        if (Test-Path $oldPath) { Remove-Item -LiteralPath $oldPath -Force -ErrorAction SilentlyContinue }
+    }
+    Write-Success "跨平台智能配置向导套件 (setup.bat / setup.sh) 已同步到 output 目录"
 }
 
 # ============================================================

@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
     [string]$Version,
@@ -72,8 +72,8 @@ try {
         if (Test-Path -LiteralPath (Join-Path $OutputDir "launcher")) {
             Copy-Item -LiteralPath (Join-Path $OutputDir "launcher") -Destination (Join-Path $productStage "launcher") -Recurse -Force
         }
-        foreach ($batName in @("快速安装快捷方式.bat", "一键更新补丁.bat", "install-launcher.bat", "update-patch.bat")) {
-            $bPath = Join-Path $OutputDir $batName
+        foreach ($entryFile in @("setup.bat", "setup.sh")) {
+            $bPath = Join-Path $OutputDir $entryFile
             if (Test-Path -LiteralPath $bPath) {
                 Copy-Item -LiteralPath $bPath -Destination $productStage -Force
             }

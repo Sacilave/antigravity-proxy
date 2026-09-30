@@ -229,11 +229,12 @@ You need these files:
 
 ### Step 3: Deploy to Antigravity
  
-#### Method A: One-Click Shortcut & Auto-Update Guard (Recommended ⭐)
-- **Windows**: Extract the release ZIP and double-click `install-launcher.bat`. It creates Desktop/Start Menu shortcuts and allows pinning to the Taskbar.
-  - **Auto-Healing**: Every time you launch Antigravity via the shortcut, it checks and restores `version.dll` within 3ms if a silent app update deleted it.
-  - **Online Update**: When a new version is released, double-click `update-patch.bat` to update seamlessly while preserving your custom proxy port.
-- **Linux / WSL**: Run `bash launcher/install-linux.sh` to install desktop/application menu entries and enable auto-heal guard.
+#### Method A: Smart Setup Wizard & Auto-Update Guard (Recommended ⭐)
+- **Windows**: Extract the release ZIP and double-click `setup.bat` to launch the wizard:
+  - **Anti-Update Guard**: Launches Antigravity and restores wiped patches in milliseconds.
+  - **Smart & Multilingual**: Auto-detects English/Chinese/Russian, and adapts between Desktop IDE and CLI mode.
+  - **Online Update & Port Config**: One-click online update (preserves custom ports), or press `[P]` to change proxy port.
+- **Linux / WSL**: Run `./setup.sh` to install desktop/application menu shortcuts with auto-heal guard.
 
 #### Method B: Manual Deployment
 Copy `version.dll` and `config.json` to Antigravity’s main program directory (next to `Antigravity.exe`). Then launch Antigravity — done.

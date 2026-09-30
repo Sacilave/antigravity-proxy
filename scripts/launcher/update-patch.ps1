@@ -1,18 +1,12 @@
 ﻿# ============================================================================
-# Antigravity-Proxy 一键在线更新补丁工具 (update-patch.ps1)
-# ============================================================================
-# 核心功能:
-# 1. 自动对比本地 Patch/ (或 ide/) 与 GitHub 官方最新 Release 版本
-# 2. 支持走本地代理端口 (读取 config.json) 及内置国内 GitHub 加速镜像，确保高成功率
-# 3. 自动下载最新 Release 压缩包、解压并更新本地 Patch/ 目录
-# 4. 智能配置保护：更新新版 DLL 的同时，自动保留用户原有的 proxy.host/port/type 配置
-# 5. 更新完成后自动热同步到 Antigravity 安装目录
+# Antigravity-Proxy 在线补丁自动更新工具 (update-patch.ps1)
 # ============================================================================
 
 [CmdletBinding()]
 param(
     [switch]$Force,
-    [switch]$NoPause
+    [switch]$NoPause,
+    [string]$Lang = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -22,9 +16,80 @@ $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $RootDir = $ScriptDir
 if ((Split-Path -Leaf $ScriptDir) -match '^(launcher|scripts)$') {
     $Parent = Split-Path -Parent $ScriptDir
-    if ((Test-Path (Join-Path $Parent "Patch")) -or (Test-Path (Join-Path $Parent "ide")) -or (Test-Path (Join-Path $Parent "build.ps1"))) {
+    if ((Test-Path (Join-Path $Parent "Patch")) -or (Test-Path (Join-Path $Parent "ide")) -or `
+        (Test-Path (Join-Path $Parent "cli")) -or (Test-Path (Join-Path $Parent "build.ps1"))) {
         $RootDir = $Parent
     }
+}
+
+$LauncherDir = if (Test-Path (Join-Path $RootDir "launcher")) { Join-Path $RootDir "launcher" } else { $ScriptDir }
+$LangPrefFile = Join-Path $LauncherDir "lang.pref"
+
+function Get-Language {
+    if (-not [string]::IsNullOrWhiteSpace($Lang)) { return $Lang.ToLower() }
+    if (Test-Path -LiteralPath $LangPrefFile) {
+        $saved = (Get-Content -LiteralPath $LangPrefFile -Raw -Encoding UTF8).Trim().ToLower()
+        if ($saved -in @("zh", "en", "ru")) { return $saved }
+    }
+    $ui = [System.Globalization.CultureInfo]::InstalledUICulture.Name.ToLower()
+    if ($ui -like "zh*") { return "zh" }
+    if ($ui -like "ru*") { return "ru" }
+    return "en"
+}
+
+$CurrentLang = Get-Language
+
+$M = @{
+    "zh" = @{
+        Title = "Antigravity-Proxy 在线补丁自动更新工具"
+        Fetching = "正在获取 GitHub 官方仓库最新 Release 信息..."
+        GotLatest = "获取到最新官方 Release: {0} (发布日期: {1})"
+        AlreadyLatest = "当前本地补丁版本 ({0}) 已是最新版本，无需更新！"
+        ForceHint = "（如需强制重新下载覆盖，可加参数 -Force 运行）"
+        FoundNew = "发现新版本！本地: [{0}] -> 最新: [{1}]"
+        NoAsset = "未在最新 Release 中找到适合当前产品的 zip 资产包。"
+        Downloading = "正在下载最新资产包: {0} ..."
+        Extracting = "正在解压并更新本地补丁目录..."
+        Synced = "已将最新补丁同步至主程序目录！"
+        Done = "🎉 补丁更新完毕！已成功保留您的本地代理端口配置。"
+        ErrConn = "无法连接到 GitHub Releases 服务，请检查代理端口 ({0}) 是否开启或网络连接状态。"
+        PressEnter = "按回车键退出..."
+    }
+    "en" = @{
+        Title = "Antigravity-Proxy Online Patch Updater"
+        Fetching = "Fetching latest Release info from GitHub..."
+        GotLatest = "Found latest official Release: {0} (Published: {1})"
+        AlreadyLatest = "Local patch version ({0}) is already up to date!"
+        ForceHint = "(Run with -Force to redownload and overwrite anyway)"
+        FoundNew = "New version available! Local: [{0}] -> Remote: [{1}]"
+        NoAsset = "No matching zip asset found in the latest Release."
+        Downloading = "Downloading latest package: {0} ..."
+        Extracting = "Extracting and updating local patch repository..."
+        Synced = "Synced updated patches to target program directory!"
+        Done = "🎉 Patch update complete! Your proxy settings have been preserved."
+        ErrConn = "Failed to connect to GitHub Releases. Please check proxy port ({0}) and network status."
+        PressEnter = "Press Enter to exit..."
+    }
+    "ru" = @{
+        Title = "Онлайн-обновление патча Antigravity-Proxy"
+        Fetching = "Получение информации о релизах с GitHub..."
+        GotLatest = "Найден последний официальный релиз: {0} (Опубликован: {1})"
+        AlreadyLatest = "Локальная версия патча ({0}) уже актуальна!"
+        ForceHint = "(Используйте параметр -Force для принудительного обновления)"
+        FoundNew = "Доступна новая версия! Локальная: [{0}] -> Удаленная: [{1}]"
+        NoAsset = "Не найден подходящий zip архив в последнем релизе."
+        Downloading = "Загрузка пакета: {0} ..."
+        Extracting = "Распаковка и обновление локального патча..."
+        Synced = "Обновленный патч синхронизирован с папкой программы!"
+        Done = "🎉 Обновление завершено! Настройки прокси успешно сохранены."
+        ErrConn = "Не удалось подключиться к GitHub Releases. Проверьте порт прокси ({0}) и сеть."
+        PressEnter = "Нажмите Enter для выхода..."
+    }
+}
+
+function T([string]$Key) {
+    if ($M[$CurrentLang].ContainsKey($Key)) { return $M[$CurrentLang][$Key] }
+    return $M["en"][$Key]
 }
 
 function Write-Title([string]$Text) {
@@ -39,24 +104,26 @@ function Write-Ok([string]$Text)   { Write-Host "[✓] $Text" -ForegroundColor G
 function Write-Warn([string]$Text) { Write-Host "[!] $Text" -ForegroundColor Magenta }
 function Write-Err([string]$Text)  { Write-Host "[✗] $Text" -ForegroundColor Red }
 
-# 1. 定位本地补丁目录 (优先 Patch/，其次 ide/)
-$PatchDir = Join-Path $RootDir "Patch"
-if (-not (Test-Path $PatchDir) -and (Test-Path (Join-Path $RootDir "ide"))) {
-    $PatchDir = Join-Path $RootDir "ide"
+# 判断当前是 IDE 还是 CLI 产品包
+$isCli = (Test-Path (Join-Path $RootDir "cli")) -and -not (Test-Path (Join-Path $RootDir "ide"))
+
+$PatchDir = if ($isCli) { Join-Path $RootDir "cli" } else {
+    if (Test-Path (Join-Path $RootDir "ide")) { Join-Path $RootDir "ide" }
+    elseif (Test-Path (Join-Path $RootDir "Patch")) { Join-Path $RootDir "Patch" }
+    else { Join-Path $RootDir "ide" }
 }
+
 if (-not (Test-Path $PatchDir)) {
     New-Item -ItemType Directory -Path $PatchDir -Force | Out-Null
 }
 
-# 2. 读取本地已有版本与代理端口
 $localVersion = "未知 (<=2.2)"
 $proxyHost = "127.0.0.1"
 $proxyPort = 7890
 $proxyType = "socks5"
 $localConfigFile = Join-Path $PatchDir "config.json"
-$hasLocalConfig = Test-Path $localConfigFile
 
-if ($hasLocalConfig) {
+if (Test-Path $localConfigFile) {
     try {
         $cfgJson = Get-Content -LiteralPath $localConfigFile -Raw -Encoding UTF8 | ConvertFrom-Json
         if ($cfgJson._version) { $localVersion = $cfgJson._version }
@@ -68,30 +135,25 @@ if ($hasLocalConfig) {
     } catch { }
 }
 
-Write-Title "Antigravity-Proxy 在线补丁自动更新工具"
-Write-Host "  本地补丁目录: $PatchDir"
-Write-Host "  当前本地版本: $localVersion"
-Write-Host "  本地代理设置: ${proxyType}://${proxyHost}:${proxyPort}"
+Write-Title (T "Title")
+Write-Host "  Target Product: $(if ($isCli) { 'CLI' } else { 'IDE' })"
+Write-Host "  Patch Directory: $PatchDir"
+Write-Host "  Local Version: $localVersion"
+Write-Host "  Proxy Setting: ${proxyType}://${proxyHost}:${proxyPort}"
 
-# 3. 准备网络请求工具（优先使用系统内置 curl.exe，原生支持 socks5/http 代理及 TLS 1.3）
 $apiUrl = "https://api.github.com/repos/yuaotian/antigravity-proxy/releases/latest"
 $releaseData = $null
 
-Write-Info "正在获取 GitHub 官方仓库最新 Release 信息..."
+Write-Info (T "Fetching")
 
 $curlCmd = Get-Command "curl.exe" -ErrorAction SilentlyContinue
-$proxyArg = "http://${proxyHost}:${proxyPort}"
-if ($proxyType -eq "socks5") {
-    $proxyArg = "socks5h://${proxyHost}:${proxyPort}"
-}
+$proxyArg = if ($proxyType -eq "socks5") { "socks5h://${proxyHost}:${proxyPort}" } else { "http://${proxyHost}:${proxyPort}" }
 
 if ($curlCmd) {
     foreach ($proxyCandidate in @($proxyArg, "http://${proxyHost}:${proxyPort}", "")) {
         try {
             $argsList = @("-fsSL", "--connect-timeout", "8", "-H", "User-Agent: Antigravity-Updater")
-            if ($proxyCandidate) {
-                $argsList += @("-x", $proxyCandidate)
-            }
+            if ($proxyCandidate) { $argsList += @("-x", $proxyCandidate) }
             $argsList += $apiUrl
             $respText = (& curl.exe @argsList 2>$null) -join "`n"
             if ($respText -and $respText.Contains("tag_name")) {
@@ -102,7 +164,6 @@ if ($curlCmd) {
     }
 }
 
-# 兜底：若 curl 未成功，尝试通过加速镜像请求
 if (-not $releaseData -or -not $releaseData.tag_name) {
     $webClient = New-Object System.Net.WebClient
     $webClient.Headers.Add("User-Agent", "Antigravity-Update-Script/1.0")
@@ -118,84 +179,66 @@ if (-not $releaseData -or -not $releaseData.tag_name) {
 }
 
 if (-not $releaseData -or -not $releaseData.tag_name) {
-    Write-Err "无法连接到 GitHub Releases 服务，请检查代理端口 ($proxyPort) 是否开启或网络连接状态。"
-    if (-not $NoPause) { Read-Host "按回车键退出..." }
+    Write-Err ([string]::Format((T "ErrConn"), $proxyPort))
+    if (-not $NoPause) { Read-Host (T "PressEnter") }
     exit 1
 }
 
 $remoteTag = $releaseData.tag_name
 $remoteVersion = $remoteTag.TrimStart('vV')
 Write-Host ""
-Write-Ok "获取到最新官方 Release: $remoteTag (发布日期: $($releaseData.published_at))"
+Write-Ok ([string]::Format((T "GotLatest"), $remoteTag, $releaseData.published_at))
 
-# 4. 判断是否需要更新
-$needUpdate = $false
-if ($localVersion -ne $remoteVersion -or $Force) {
-    $needUpdate = $true
-}
-
+$needUpdate = ($localVersion -ne $remoteVersion -or $Force)
 if (-not $needUpdate) {
-    Write-Ok "当前本地补丁版本 ($localVersion) 已是最新版本，无需更新！"
-    Write-Host "（如需强制重新下载覆盖，可加参数 -Force 运行）" -ForegroundColor Gray
-    if (-not $NoPause) { Read-Host "按回车键退出..." }
+    Write-Ok ([string]::Format((T "AlreadyLatest"), $localVersion))
+    Write-Host (T "ForceHint") -ForegroundColor Gray
+    if (-not $NoPause) { Read-Host (T "PressEnter") }
     exit 0
 }
 
-Write-Info "发现新版本！本地: [$localVersion] -> 最新: [$remoteVersion]"
+Write-Info ([string]::Format((T "FoundNew"), $localVersion, $remoteVersion))
 
-# 5. 寻找 Windows x64 IDE 资产包下载地址（优先匹配 ide-win-x64.zip）
-$asset = $releaseData.assets | Where-Object { $_.name -like "*ide-win-x64.zip" } | Select-Object -First 1
+# 根据当前是 CLI 还是 IDE 寻找匹配的资产包
+$assetPattern = if ($isCli) { "*cli-win-x64.zip" } else { "*ide-win-x64.zip" }
+$asset = $releaseData.assets | Where-Object { $_.name -like $assetPattern } | Select-Object -First 1
 if (-not $asset) {
-    $asset = $releaseData.assets | Where-Object { $_.name -like "*-win-x64.zip" -and $_.name -notlike "*cli*" } | Select-Object -First 1
-}
-if (-not $asset) {
-    $asset = $releaseData.assets | Where-Object { $_.name -like "*.zip" } | Select-Object -First 1
+    $asset = $releaseData.assets | Where-Object { $_.name -like "*-win-x64.zip" } | Select-Object -First 1
 }
 
 if (-not $asset) {
-    Write-Err "未在最新 Release 中找到适合的 Windows zip 资产包。"
+    Write-Err (T "NoAsset")
     exit 1
 }
 
 $downloadUrl = $asset.browser_download_url
 $zipFileName = $asset.name
-Write-Info "目标下载包: $zipFileName"
+Write-Info ([string]::Format((T "Downloading"), $zipFileName))
 
-$tempDir = Join-Path ([System.IO.Path]::GetTempPath()) "ag-proxy-update-$([guid]::NewGuid().ToString('N'))"
+$tempDir = Join-Path ([System.IO.Path]::GetTempPath()) "ag-update-$([guid]::NewGuid().ToString('N'))"
 New-Item -ItemType Directory -Path $tempDir -Force | Out-Null
 $tempZip = Join-Path $tempDir $zipFileName
 
 $downloadSuccess = $false
 if ($curlCmd) {
-    $oldEa = $ErrorActionPreference
-    $ErrorActionPreference = "Continue"
     foreach ($proxyCandidate in @($proxyArg, "http://${proxyHost}:${proxyPort}", "")) {
-        Write-Info "正在通过代理 ($proxyCandidate) 高速下载 $zipFileName ..."
         $dlArgs = @("-fsSL", "--connect-timeout", "10", "-o", $tempZip)
-        if ($proxyCandidate) {
-            $dlArgs += @("-x", $proxyCandidate)
-        }
+        if ($proxyCandidate) { $dlArgs += @("-x", $proxyCandidate) }
         $dlArgs += $downloadUrl
         & curl.exe @dlArgs 2>$null
         if ((Test-Path $tempZip) -and (Get-Item $tempZip).Length -gt 10000) {
             $downloadSuccess = $true
-            Write-Ok "下载完成！包大小: $([math]::Round((Get-Item $tempZip).Length / 1KB, 1)) KB"
             break
         }
     }
-    $ErrorActionPreference = $oldEa
 }
 
 if (-not $downloadSuccess) {
-    $webClient = New-Object System.Net.WebClient
-    $webClient.Headers.Add("User-Agent", "Antigravity-Update-Script/1.0")
-    foreach ($url in @("https://ghproxy.net/$downloadUrl", $downloadUrl)) {
-        Write-Info "正在通过镜像下载: $url ..."
+    foreach ($dlUrl in @("https://ghproxy.net/$downloadUrl", $downloadUrl)) {
         try {
-            $webClient.DownloadFile($url, $tempZip)
+            (New-Object System.Net.WebClient).DownloadFile($dlUrl, $tempZip)
             if ((Test-Path $tempZip) -and (Get-Item $tempZip).Length -gt 10000) {
                 $downloadSuccess = $true
-                Write-Ok "下载完成！包大小: $([math]::Round((Get-Item $tempZip).Length / 1KB, 1)) KB"
                 break
             }
         } catch { }
@@ -203,87 +246,60 @@ if (-not $downloadSuccess) {
 }
 
 if (-not $downloadSuccess) {
-    Write-Err "所有镜像源下载均失败，请检查网络或代理连接。"
-    Remove-Item -Path $tempDir -Recurse -Force -ErrorAction SilentlyContinue
+    Write-Err "Download failed."
     exit 1
 }
 
-# 6. 解压并智能更新到 Patch/ 目录
-Write-Info "正在解压并更新本地补丁文件..."
+Write-Ok "Download completed."
+Write-Info (T "Extracting")
+
 $extractDir = Join-Path $tempDir "extracted"
-Add-Type -AssemblyName System.IO.Compression.FileSystem
-[System.IO.Compression.ZipFile]::ExtractToDirectory($tempZip, $extractDir)
+Expand-Archive -LiteralPath $tempZip -DestinationPath $extractDir -Force
 
-# 寻找解压出的补丁文件目录 (可能是 ide/ 或根目录)
-$sourceDir = $extractDir
-if (Test-Path (Join-Path $extractDir "ide")) {
-    $sourceDir = Join-Path $extractDir "ide"
+# 寻找解压出的新补丁目录
+$srcPatchDir = ""
+if ($isCli) {
+    if (Test-Path (Join-Path $extractDir "cli")) { $srcPatchDir = Join-Path $extractDir "cli" }
+} else {
+    if (Test-Path (Join-Path $extractDir "ide")) { $srcPatchDir = Join-Path $extractDir "ide" }
+    elseif (Test-Path (Join-Path $extractDir "Patch")) { $srcPatchDir = Join-Path $extractDir "Patch" }
 }
 
-# 提取关键文件
-$filesToCopy = Get-ChildItem -Path $sourceDir -Recurse -File
-
-foreach ($f in $filesToCopy) {
-    $dest = Join-Path $PatchDir $f.Name
-    if ($f.Name -eq "config.json" -and $hasLocalConfig) {
-        # 智能保护：保留用户原本配置的 proxy.host / port / type 等
-        try {
-            $newCfg = Get-Content -LiteralPath $f.FullName -Raw -Encoding UTF8 | ConvertFrom-Json
-            if ($newCfg.proxy) {
-                $newCfg.proxy.host = $proxyHost
-                $newCfg.proxy.port = $proxyPort
-                $newCfg.proxy.type = $proxyType
-            }
-            # 备份旧配置
-            Copy-Item -LiteralPath $localConfigFile -Destination "$localConfigFile.bak" -Force
-            # 写入合并后的新配置
-            $newCfg | ConvertTo-Json -Depth 10 | Out-File -FilePath $dest -Encoding UTF8
-            Write-Ok "已更新 config.json 并智能保留了您的代理设置 (${proxyType}://${proxyHost}:${proxyPort})"
-            continue
-        } catch { }
-    }
-    Copy-Item -LiteralPath $f.FullName -Destination $dest -Force
-    Write-Ok "已更新补丁文件: $($f.Name)"
+if (-not $srcPatchDir -or -not (Test-Path $srcPatchDir)) {
+    $srcPatchDir = $extractDir
 }
 
-# 同时更新根目录的可视化配置工具与说明文档 (如果解压包包含)
-foreach ($docName in @("config-web.html", "使用说明.md")) {
-    $docFile = Join-Path $extractDir $docName
-    if (Test-Path $docFile) {
-        Copy-Item -LiteralPath $docFile -Destination (Join-Path $RootDir $docName) -Force
-    }
-}
-
-# 清理临时文件
-Remove-Item -Path $tempDir -Recurse -Force -ErrorAction SilentlyContinue
-
-Write-Host ""
-Write-Ok "🎉 补丁更新成功！当前版本已升级至: $remoteTag"
-
-# 7. 立即自动热同步到 Antigravity 安装目录
-$appPathFile = Join-Path $RootDir "app_path.txt"
-if (Test-Path $appPathFile) {
-    $appDir = (Get-Content $appPathFile -Raw -Encoding UTF8).Trim()
-    if ($appDir -and (Test-Path $appDir)) {
-        Write-Info "正在热同步新补丁到 Antigravity 程序目录 [$appDir]..."
-        $installScript = Join-Path $RootDir "launcher\install-windows.ps1"
-        if (Test-Path $installScript) {
-            & $installScript -Mode SyncOnly -NoPause
-        } else {
-            foreach ($item in (Get-ChildItem -Path $PatchDir -File)) {
-                try {
-                    Copy-Item -LiteralPath $item.FullName -Destination (Join-Path $appDir $item.Name) -Force
-                } catch { }
-            }
+# 保留原有的代理配置
+$sourceConfigFile = Join-Path $srcPatchDir "config.json"
+if ((Test-Path $sourceConfigFile) -and $hasLocalConfig) {
+    try {
+        $newCfg = Get-Content -LiteralPath $sourceConfigFile -Raw -Encoding UTF8 | ConvertFrom-Json
+        if ($newCfg.proxy) {
+            $newCfg.proxy.host = $proxyHost
+            $newCfg.proxy.port = $proxyPort
+            $newCfg.proxy.type = $proxyType
         }
-        Write-Ok "已将最新补丁热部署至 Antigravity！"
-    }
+        $newCfg | ConvertTo-Json -Depth 10 | Out-File -FilePath $sourceConfigFile -Encoding UTF8
+    } catch { }
 }
 
-Write-Host ""
-Write-Ok "全部流程完成！下次启动直接双击快捷方式即可使用最新版 $remoteTag。"
+# 复制到本地补丁目录
+Copy-Item -Path (Join-Path $srcPatchDir "*") -Destination $PatchDir -Recurse -Force
+Remove-Item -LiteralPath $tempDir -Recurse -Force
+
+Write-Ok (T "Done")
+
+# 如果已经绑定了目标目录，尝试自动同步
+$installScript = Join-Path $RootDir "launcher\install-windows.ps1"
+if (-not (Test-Path $installScript)) {
+    $installScript = Join-Path $RootDir "scripts\launcher\install-windows.ps1"
+}
+if (Test-Path $installScript) {
+    & $installScript -Mode SyncOnly -NoPause
+    Write-Ok (T "Synced")
+}
 
 if (-not $NoPause) {
     Write-Host ""
-    Read-Host "按回车键关闭窗口..."
+    Read-Host (T "PressEnter")
 }

@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
     [ValidateSet("Release", "Debug")]
     [string]$Config = "Release",
@@ -137,7 +137,8 @@ if (-not $SkipReleaseLayout) {
     Assert-ZipEntry $IdeEntries "ide/config.json"
     Assert-ZipEntry $IdeEntries "config-web.html"
     Assert-ZipEntry $IdeEntries "使用说明.md"
-    Assert-ZipEntry $IdeEntries "快速安装快捷方式.bat"
+    Assert-ZipEntry $IdeEntries "setup.bat"
+    Assert-ZipEntry $IdeEntries "setup.sh"
     Assert-ZipEntry $IdeEntries "launcher/install-windows.ps1"
     Assert-ZipEntry $IdeEntries "launcher/install-linux.sh"
     if ($IdeEntries -match '(^|/)cli/' -or $IdeEntries -match 'dbghelp\.dll$' -or $IdeEntries -match 'antigravity_proxy\.dll$') {
@@ -150,7 +151,8 @@ if (-not $SkipReleaseLayout) {
     Assert-ZipEntry $CliEntries "cli/config.json"
     Assert-ZipEntry $CliEntries "config-web.html"
     Assert-ZipEntry $CliEntries "使用说明.md"
-    Assert-ZipEntry $CliEntries "快速安装快捷方式.bat"
+    Assert-ZipEntry $CliEntries "setup.bat"
+    Assert-ZipEntry $CliEntries "setup.sh"
     Assert-ZipEntry $CliEntries "launcher/install-windows.ps1"
     Assert-ZipEntry $CliEntries "launcher/install-linux.sh"
     if ($CliEntries -match '(^|/)ide/' -or $CliEntries -match '(^|/)version\.dll$') {
