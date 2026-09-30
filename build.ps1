@@ -1,4 +1,4 @@
-﻿# ============================================================
+# ============================================================
 #  Antigravity-Proxy 编译脚本
 #  PowerShell Build Script for Windows
 # ============================================================
@@ -681,6 +681,34 @@ if (Test-Path $configWebSrc) {
     Write-Success "配置工具已复制到 output 目录"
 } else {
     Write-Warning "配置工具源文件不存在: $configWebSrc"
+}
+
+# ============================================================
+# 步骤 10.5: 复制防更新覆盖启动器与快捷方式安装套件
+# ============================================================
+
+Write-Step "整理防更新覆盖启动器与快捷方式工具..."
+$LauncherOutDir = Join-Path $OutputDir "launcher"
+if (-not (Test-Path $LauncherOutDir)) {
+    New-Item -ItemType Directory -Path $LauncherOutDir -Force | Out-Null
+}
+$launcherExeBuilt = Get-ChildItem -Path $BuildDir -Recurse -Filter "AntigravityLauncher.exe" | Select-Object -First 1
+if ($launcherExeBuilt) {
+    Copy-Item $launcherExeBuilt.FullName -Destination (Join-Path $LauncherOutDir "AntigravityLauncher.exe") -Force
+    Write-Success "原生启动器 AntigravityLauncher.exe 已复制到 output\launcher"
+}
+$launcherScriptsSrc = Join-Path $PSScriptRoot "scripts\launcher"
+if (Test-Path $launcherScriptsSrc) {
+    Get-ChildItem -Path $launcherScriptsSrc -File | ForEach-Object {
+        Copy-Item $_.FullName -Destination (Join-Path $LauncherOutDir $_.Name) -Force
+    }
+    foreach ($batName in @("快速安装快捷方式.bat", "一键更新补丁.bat", "install-launcher.bat", "update-patch.bat")) {
+        $bSrc = Join-Path $launcherScriptsSrc $batName
+        if (Test-Path $bSrc) {
+            Copy-Item $bSrc -Destination (Join-Path $OutputDir $batName) -Force
+        }
+    }
+    Write-Success "跨平台快捷方式安装套件已同步到 output 目录"
 }
 
 # ============================================================

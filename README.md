@@ -231,6 +231,13 @@ Release 按架构和运行目标提供四个独立压缩包，下载时只选实
 
 ### Step 3: 部署到 Antigravity / Deploy to Antigravity
 
+#### 方式 A：一键安装快捷方式与防更新覆盖守护（推荐 ⭐）
+- **Windows 用户**：解压 Release 压缩包后直接双击根目录的 `install-launcher.bat`（或 `快速安装快捷方式.bat`），即可一键创建桌面/开始菜单快捷方式或固定到任务栏。
+  - **原生防更新覆盖**：每次双击快捷方式启动时在 3 毫秒内自动比对，若客户端后台自动升级删除了补丁，会瞬间自动热恢复，彻底解决更新失效问题。
+  - **在线更新**：后续有新版本发布时，双击 `update-patch.bat`（或 `一键更新补丁.bat`）即可一键在线热升级，并自动智能保留您原本设置的代理端口。
+- **Linux / WSL 用户**：运行 `bash launcher/install-linux.sh`，支持自动创建桌面与系统应用菜单 `.desktop` 快捷方式并启用防更新自愈守护。
+
+#### 方式 B：手动复制部署
 桌面端只复制 `ide/` 内的文件到 **Antigravity 主程序目录**（与 `Antigravity.exe` 同级）。
 
 如果使用 **Antigravity CLI**，只复制 `cli/` 内的文件到 `agy.exe` 同级目录。`dbghelp.dll` 会在导出函数首次调用时加载唯一名称的 `antigravity_proxy.dll`，避开系统 `version.dll` 同名冲突。

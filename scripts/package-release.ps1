@@ -69,6 +69,15 @@ try {
             -Destination (Join-Path $productStage $product) -Recurse -Force
         Copy-Item -LiteralPath (Join-Path $OutputDir "config-web.html") -Destination $productStage -Force
         Copy-Item -LiteralPath (Join-Path $OutputDir "使用说明.md") -Destination $productStage -Force
+        if (Test-Path -LiteralPath (Join-Path $OutputDir "launcher")) {
+            Copy-Item -LiteralPath (Join-Path $OutputDir "launcher") -Destination (Join-Path $productStage "launcher") -Recurse -Force
+        }
+        foreach ($batName in @("快速安装快捷方式.bat", "一键更新补丁.bat", "install-launcher.bat", "update-patch.bat")) {
+            $bPath = Join-Path $OutputDir $batName
+            if (Test-Path -LiteralPath $bPath) {
+                Copy-Item -LiteralPath $bPath -Destination $productStage -Force
+            }
+        }
 
         $zipPath = if ($product -eq "ide") { $ideZip } else { $cliZip }
         Compress-Archive -Path (Join-Path $productStage "*") -DestinationPath $zipPath -Force
