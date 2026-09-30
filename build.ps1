@@ -471,11 +471,19 @@ FAILED_PRECONDITION (code 400): User location is not supported for the API use.
 
 ## 快速开始
 
-### 1. 选择部署目录
-- Antigravity 桌面端/IDE：只复制 `output/ide` 内的 `version.dll` 与 `config.json`。
-- Antigravity CLI：只复制 `output/cli` 内的 `dbghelp.dll`、`antigravity_proxy.dll` 与 `config.json`。
+### 1. 部署方式
 
-两个目录不得混合复制。CLI shim 会延迟加载唯一名称的 `antigravity_proxy.dll`，桌面端不需要 `dbghelp.dll`。
+#### 方式 A：一键安装快捷方式与防更新覆盖守护（推荐 ⭐）
+- **Windows 用户**：解压后直接双击根目录的 `install-launcher.bat`（或 `快速安装快捷方式.bat`），即可一键创建桌面/开始菜单快捷方式或固定到任务栏。
+  - **原生防更新覆盖**：每次通过快捷方式启动时在 3 毫秒内自动比对，若客户端自动更新抹除了补丁，会瞬间自动热恢复。
+  - **在线更新**：后续有新版本发布时，双击 `update-patch.bat`（或 `一键更新补丁.bat`）即可一键在线热升级并保留原有代理端口。
+- **Linux / WSL 用户**：运行 `bash launcher/install-linux.sh` 即可安装桌面菜单并启用防更新自愈守护。
+
+#### 方式 B：手动复制部署
+- Antigravity 桌面端/IDE：只复制 `ide/` 内的 `version.dll` 与 `config.json` 到主程序目录。
+- Antigravity CLI：只复制 `cli/` 内的 `dbghelp.dll`、`antigravity_proxy.dll` 与 `config.json` 到 `agy.exe` 目录。
+
+两个目录不得混合复制。桌面端不需要 `dbghelp.dll`。
 
 ### 2. 配置代理
 编辑 `config.json`，设置代理服务器地址：
