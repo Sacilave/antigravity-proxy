@@ -18,3 +18,8 @@ if not exist "%PS_SCRIPT%" (
 )
 
 powershell -NoProfile -ExecutionPolicy Bypass -File "%PS_SCRIPT%" %*
+if %ERRORLEVEL% neq 0 (
+    echo.
+    echo [提示] 脚本执行遇到问题，已保留窗口以便查看输出。
+    pause
+)

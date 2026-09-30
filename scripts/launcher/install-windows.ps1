@@ -110,16 +110,18 @@ function Find-AntigravityDir([bool]$AllowDialog = $true) {
     return ""
 }
 
-# 2. 探测补丁源目录 (兼容官方 Release 的 ide/、output/ide/ 以及用户自定义的 Patch/)
+# 2. 探测补丁源目录 (兼容官方 Release 的 ide/、cli/、Patch/ 以及根目录)
 function Find-PatchSourceDir {
     $candidates = @(
         (Join-Path $RootDir "ide"),
         (Join-Path $RootDir "output\ide"),
+        (Join-Path $RootDir "cli"),
+        (Join-Path $RootDir "output\cli"),
         (Join-Path $RootDir "Patch"),
         $RootDir
     )
     foreach ($dir in $candidates) {
-        if (Test-Path (Join-Path $dir "version.dll")) {
+        if ((Test-Path -LiteralPath $dir) -and ((Test-Path (Join-Path $dir "version.dll")) -or (Test-Path (Join-Path $dir "dbghelp.dll")) -or (Test-Path (Join-Path $dir "config.json")))) {
             return $dir
         }
     }
@@ -576,23 +578,38 @@ while ($true) {
         }
         "P" {
             $patchDir = Find-PatchSourceDir
-            $cfgFile = Join-Path $patchDir "config.json"
-            if (-not (Test-Path $cfgFile) -and (Test-Path (Join-Path $targetDir "config.json"))) {
-                $cfgFile = Join-Path $targetDir "config.json"
+            $cfgFile = ""
+            $candidatesToSearch = @()
+            if ($patchDir) { $candidatesToSearch += (Join-Path $patchDir "config.json") }
+            $candidatesToSearch += @(
+                (Join-Path $RootDir "ide\config.json"),
+                (Join-Path $RootDir "cli\config.json"),
+                (Join-Path $RootDir "Patch\config.json"),
+                (Join-Path $RootDir "config.json")
+            )
+            if ($targetDir) { $candidatesToSearch += (Join-Path $targetDir "config.json") }
+
+            foreach ($c in $candidatesToSearch) {
+                if (Test-Path -LiteralPath $c) {
+                    $cfgFile = $c
+                    break
+                }
             }
-            if (Test-Path $cfgFile) {
+
+            if ($cfgFile -and (Test-Path -LiteralPath $cfgFile)) {
                 try {
                     $cObj = Get-Content -LiteralPath $cfgFile -Raw -Encoding UTF8 | ConvertFrom-Json
-                    $curHost = if ($cObj.proxy.host) { $cObj.proxy.host } else { "127.0.0.1" }
-                    $curPort = if ($cObj.proxy.port) { $cObj.proxy.port } else { 7890 }
-                    $curType = if ($cObj.proxy.type) { $cObj.proxy.type } else { "socks5" }
+                    $curHost = if ($cObj.proxy -and $cObj.proxy.host) { $cObj.proxy.host } else { "127.0.0.1" }
+                    $curPort = if ($cObj.proxy -and $cObj.proxy.port) { $cObj.proxy.port } else { 7890 }
+                    $curType = if ($cObj.proxy -and $cObj.proxy.type) { $cObj.proxy.type } else { "socks5" }
                     Write-Host ""
-                    Write-Host "当前代理配置: $($curType)://$($curHost):$($curPort)" -ForegroundColor Cyan
-                    $newPort = Read-Host "请输入新的代理端口号 (按回车保持不变)"
+                    Write-Host "  当前配置文件: $cfgFile" -ForegroundColor Gray
+                    Write-Host "  当前代理配置: $($curType)://$($curHost):$($curPort)" -ForegroundColor Cyan
+                    $newPort = Read-Host "  请输入新的代理端口号 (按回车保持不变)"
                     if (-not [string]::IsNullOrWhiteSpace($newPort) -and ($newPort -match '^\d+$')) {
                         $cObj.proxy.port = [int]$newPort
                         $cObj | ConvertTo-Json -Depth 10 | Out-File -FilePath $cfgFile -Encoding UTF8
-                        if ($targetDir -and (Test-Path $targetDir)) {
+                        if ($targetDir -and (Test-Path $targetDir) -and (Test-Path (Join-Path $targetDir "config.json"))) {
                             $cObj | ConvertTo-Json -Depth 10 | Out-File -FilePath (Join-Path $targetDir "config.json") -Encoding UTF8
                         }
                         Write-Ok "已成功更新代理端口为: $newPort！已同步保存至本地补丁库与主程序目录。"
@@ -601,8 +618,10 @@ while ($true) {
                     Write-Err "读取或修改 config.json 失败: $_"
                 }
             } else {
-                Write-Warn "未找到可修改的 config.json 文件。"
+                Write-Warn "未找到可修改的 config.json 文件 (请确保已解压 ide/、cli/ 或已绑定主程序目录)。"
             }
+            Write-Host ""
+            Read-Host "按回车键返回主菜单..."
         }
         "0" { break }
         default { Write-Warn "无效选项，请重新输入。" }
