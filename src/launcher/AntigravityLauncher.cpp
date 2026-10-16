@@ -162,9 +162,17 @@ bool ShouldSyncFile(const std::wstring& srcPath, const std::wstring& dstPath) {
     if (!GetFileAttributesExW(dstPath.c_str(), GetFileExInfoStandard, &dstInfo)) {
         return true; // 目标文件被更新删除或不存在，立即恢复
     }
+
+    // 保护用户的配置文件：如果目标 config.json 已经存在，保留现有配置，不覆盖
+    size_t lastSlash = dstPath.find_last_of(L"\\/");
+    std::wstring fileName = (lastSlash != std::wstring::npos) ? dstPath.substr(lastSlash + 1) : dstPath;
+    if (_wcsicmp(fileName.c_str(), L"config.json") == 0) {
+        return false;
+    }
+
     if (srcInfo.nFileSizeHigh != dstInfo.nFileSizeHigh ||
         srcInfo.nFileSizeLow != dstInfo.nFileSizeLow) {
-        return true; // 文件大小变化（例如更新了版本或修改了 config.json）
+        return true; // 文件大小变化（例如更新了版本或修改了补丁）
     }
     // 如果源文件比目标文件新，则同步覆盖
     if (CompareFileTime(&srcInfo.ftLastWriteTime, &dstInfo.ftLastWriteTime) > 0) {
